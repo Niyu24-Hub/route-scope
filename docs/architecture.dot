@@ -1,0 +1,15 @@
+digraph RouteScope {
+  graph [rankdir=LR, bgcolor="#0b101a", pad="0.4", nodesep="0.5", ranksep="0.6", fontname="Microsoft YaHei"];
+  node [shape=box, style="rounded,filled", fillcolor="#18263b", color="#426087", fontcolor="#d8e7fb", fontname="Microsoft YaHei", margin="0.22,0.15"];
+  edge [color="#86adf6", fontcolor="#a6b7d1", fontname="Microsoft YaHei", fontsize=10];
+  codex [label="Codex\nWindows / WSL"];
+  cc [label="CC Switch\n127.0.0.1:15721"];
+  scope [label="Route Scope\n127.0.0.1:15723",fillcolor="#243d61"];
+  api [label="AnyRouter\n公开 API 边界"];
+  pool [label="内部号池 / 执行模型\n本地不可直接观测",style="rounded,dashed",color="#8f7350"];
+  db [label="本地 SQLite\n脱敏报文 + 首包 / 最终字段"];
+  ui [label="中文面板 :15724\n筛选 / 证据 / 导出"];
+  codex -> cc [dir=both]; cc -> scope [dir=both]; scope -> api [dir=both]; api -> pool [dir=both,style=dashed];
+  scope -> db [label="旁路记录"]; db -> ui;
+  scope -> ui [label="请求原始强度 / 任意档位", style=dotted];
+}

@@ -1,0 +1,27 @@
+.venv*/
+venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+data/
+reports/
+route-scope.local.toml
+*.db*
+*.log
+*.flow
+*.pcap
+*.pcapng
+.env
+.env.*
+!.env.example
+*.local.toml
+dist/
+build/
+.ruff_cache/
+# Local development history and real-session screenshots: never publish.
+docs/CONTEXT.md
+docs/*VALIDATION.md
+!docs/VALIDATION.md
+docs/*FIX.md
+docs/WSL-LIVE-RESULT.md
+docs/images/automatic-capture*.png

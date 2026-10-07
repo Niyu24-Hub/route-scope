@@ -1,0 +1,11 @@
+include README.md LICENSE CHANGELOG.md CONTRIBUTING.md SECURITY.md
+include *.toml *.ps1 *.cmd *.sh uv.lock
+recursive-include scripts *.ps1 *.py
+recursive-include addons *.py
+recursive-include docs *.md *.svg *.dot *.png
+prune data
+prune reports
+exclude docs/CONTEXT.md docs/*VALIDATION.md docs/*FIX.md docs/WSL-LIVE-RESULT.md
+include docs/VALIDATION.md
+exclude docs/images/automatic-capture*.png
+exclude *.local.toml

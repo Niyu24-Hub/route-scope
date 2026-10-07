@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "route-scope"
+version = "0.3.2"
+description = "Local CC Switch / AnyRouter request and reasoning evidence inspector"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["aiohttp>=3.12.15,<4", "Brotli>=1.1,<2", "zstandard>=0.23,<1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "playwright>=1.50,<2"]
+mitm = ["mitmproxy>=12,<13; python_version >= '3.12'"]
+
+[project.scripts]
+route-scope = "route_scope.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Niyu24-Hub/route-scope"
+Documentation = "https://github.com/Niyu24-Hub/route-scope/blob/main/docs/QUICKSTART.md"
+Issues = "https://github.com/Niyu24-Hub/route-scope/issues"
+
+[tool.setuptools.packages.find]
+include = ["route_scope*"]
+
+[tool.setuptools.package-data]
+route_scope = ["static/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

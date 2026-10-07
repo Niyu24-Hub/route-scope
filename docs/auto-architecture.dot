@@ -1,0 +1,20 @@
+digraph AutoCapture {
+  graph [rankdir=LR,bgcolor="#0b101a",pad="0.4",fontname="Microsoft YaHei"];
+  node [shape=box,style="rounded,filled",fillcolor="#17263b",color="#476385",fontcolor="#dce8fa",fontname="Microsoft YaHei",margin="0.2,0.15"];
+  edge [color="#8db2ec",fontcolor="#a5b6d0",fontname="Microsoft YaHei",fontsize=10];
+  client [label="原有 Codex / Claude"];
+  cc [label="原有 CC Switch\n自动发现监听端口"];
+  mihomo [label="原有 mihomo"];
+  upstream [label="anyrouter / 号池\nTLS 内部不可见"];
+  client -> cc [dir=both,label="原有 HTTP 请求 / 返回"];
+  cc -> mihomo [dir=both];mihomo -> upstream [dir=both];
+  capture [label="报文副本\nWSL AF_PACKET / Windows Npcap"];
+  supervisor [label="Route Scope 管理器\n自动发现 / 心跳 / 恢复"];
+  db [label="各来源独立 SQLite\n摘要 + 脱敏正文"];
+  dashboard [label="本机中文面板 :15927\n来源覆盖 / 筛选 / 暂停"];
+  cc -> capture [style=dashed,label="旁路读取，无连接接管",constraint=false];
+  client -> capture [style=dashed,constraint=false];
+  supervisor -> capture [label="只管理本项目后端"];
+  capture -> db;db -> dashboard;
+  dashboard -> supervisor [label="仅暂停 / 继续抓取",style=dashed];
+}

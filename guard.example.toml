@@ -1,0 +1,34 @@
+# 这是独立、显式启用的路由网关。不会改变已运行的旁路采集或 CC Switch。
+# CC Switch -> http://127.0.0.1:15725/v1 -> AnyRouter
+upstream = "https://anyrouter.top"
+proxy_port = 15725
+dashboard_port = 15726
+data_dir = "data/guard"
+# 如需网络代理，取消下一行注释并填写实际地址。
+# outbound_proxy = "http://127.0.0.1:7890"
+
+[guard]
+# 替换为你的上游实际支持的模型名称。
+models = ["your-model-name"]
+minimum_effort = "high"
+# 明确的出站策略：低于门槛时提高；xhigh/max 保持原值，绝不降低。
+raise_effort = true
+max_attempts = 1
+retry_stateless = false
+cooldown_seconds = 60
+total_timeout = 600
+buffer_limit = 16777216
+session_ttl = 3600
+history_window = 20
+health_ttl = 900
+
+[[routes]]
+name = "anyrouter-primary"
+upstream = "https://anyrouter.top"
+# 省略 key_env 时只对同 origin 使用 CC Switch 传来的认证。
+
+# 仅添加你实际拥有且授权使用的独立路由。不同 Key 不等于不同号池账号。
+# [[routes]]
+# name = "anyrouter-alternative"
+# upstream = "https://anyrouter.top"
+# key_env = "ROUTE_SCOPE_ANYROUTER_ALTERNATIVE_KEY"
