@@ -8,6 +8,7 @@ import sqlite3
 from .runtime import read_json, runtime_state
 from .snapshots import valid_id
 from .store import compact
+from .evidence import enrich_record
 
 
 class Catalog:
@@ -52,6 +53,7 @@ class Catalog:
                         cols={r[1] for r in db.execute('pragma table_info(captures)')}
                         column='coalesce(summary,data)' if not full and 'summary' in cols else 'data'
                         rows=[json.loads(r[0]) for r in db.execute(f'select {column} from captures order by started desc limit ?',(min(limit,self.retention),))]
+                rows = [enrich_record(r) for r in rows]
                 if not full:
                     rows=[compact(r) for r in rows]
                     self.cache[path.parent.name]=rows
@@ -71,11 +73,11 @@ class Catalog:
                     if not any(r['id']==capture_id for r in self.index(path)):continue
                     value=json.loads((path.parent/'records'/(capture_id+'.json')).read_text(encoding='utf-8'))
                     if value.get('id')!=capture_id:raise ValueError('Mismatched snapshot id')
-                    return value
+                    return enrich_record(value)
                 if not path.exists():continue
                 with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.2)) as db:
                     row=db.execute('select data from captures where id=?',(capture_id,)).fetchone()
-                    if row:return json.loads(row[0])
+                    if row:return enrich_record(json.loads(row[0]))
             except (sqlite3.Error,OSError,ValueError,AttributeError) as exc:self.error(path,exc)
         return None
 

@@ -2,6 +2,7 @@ import json
 import os
 import sqlite3
 from pathlib import Path
+from .evidence import enrich_record
 
 BODY_FIELDS = {'request_body','response_body','request_headers','response_headers','output_text','events','forwarded_request_body','forwarded_request_headers'}
 
@@ -53,11 +54,11 @@ class Store:
 
     def list(self, limit=1000, full=False):
         column='data' if full else 'summary'
-        return [json.loads(x[0]) for x in self.db.execute(f"select {column} from captures order by started desc limit ?", (min(limit, self.retention),))]
+        return [enrich_record(json.loads(x[0])) for x in self.db.execute(f"select {column} from captures order by started desc limit ?", (min(limit, self.retention),))]
 
     def get(self, capture_id):
         row = self.db.execute("select data from captures where id=?", (capture_id,)).fetchone()
-        return json.loads(row[0]) if row else None
+        return enrich_record(json.loads(row[0])) if row else None
 
     def close(self):
         self.db.close()

@@ -1,11 +1,17 @@
 include README.md LICENSE CHANGELOG.md CONTRIBUTING.md SECURITY.md
-include *.toml *.ps1 *.cmd *.sh uv.lock
-recursive-include scripts *.ps1 *.py
-recursive-include addons *.py
-recursive-include docs *.md *.svg *.dot *.png
+include pyproject.toml guard.example.toml route-scope.example.toml uv.lock
+include start-auto.ps1 start-guard.ps1 start-windows.ps1 verify-npcap-installer.ps1
+include start-auto.cmd start-guard.cmd start-demo.cmd stop-auto.cmd start-auto-wsl.sh start-wsl.sh
+include scripts/bootstrap.ps1 scripts/smoke_installed.py addons/mitm_capture.py
+include scripts/check_distributions.py
+prune docs
+include docs/AUTO-CAPTURE.md docs/CLAUDE-CAPTURE.md docs/MITMPROXY.md docs/PASSIVE-WSL.md
+include docs/QUICKSTART.md docs/RELEASING.md docs/ROUTING-GUARD.md docs/TROUBLESHOOTING.md
+include docs/VALIDATION.md docs/WINDOWS-MODERN-CAPTURE.md
+include docs/architecture.dot docs/architecture.svg docs/auto-architecture.dot docs/auto-architecture.svg
+include docs/images/dashboard-demo.png docs/images/dashboard-mobile.png docs/images/evidence-demo.png
+include docs/images/routing-guard-demo.png docs/images/routing-guard-mobile.png
+include docs/images/claude-demo.png docs/images/claude-mobile.png
 prune data
 prune reports
-exclude docs/CONTEXT.md docs/*VALIDATION.md docs/*FIX.md docs/WSL-LIVE-RESULT.md
-include docs/VALIDATION.md
-exclude docs/images/automatic-capture*.png
 exclude *.local.toml

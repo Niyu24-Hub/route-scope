@@ -48,6 +48,7 @@ Windows 与 WSL 共用源码时，分别创建环境，不能共用 `.venv`。�
 ## 功能与边界
 
 - 分别提取请求强度、首包和最终回显，保留缺失、null、未知字符串和 0 tokens。
+- Claude 专项：展示 thinking 模式/预算、消息级 effort 与 thinking tokens；标准协议无回显时单独显示完成状态。[字段说明与截图](docs/CLAUDE-CAPTURE.md)
 - 支持 Responses、Chat Completions、Claude Messages 的 HTTP / SSE 观测，支持 gzip / deflate / br / zstd；显式代理支持顺序 WebSocket Responses。
 - 会话筛选、来源覆盖、完整性状态、脱敏报文详情、JSONL 导出。
 - Windows / WSL 各自存储，通过原子快照聚合，来源故障与读取错误会显示在面板中。
@@ -61,6 +62,7 @@ Windows 与 WSL 共用源码时，分别创建环境，不能共用 `.venv`。�
 - [Windows 捕获诊断](docs/WINDOWS-MODERN-CAPTURE.md)
 - [WSL 限时旁路观测](docs/PASSIVE-WSL.md)
 - [强度回显网关](docs/ROUTING-GUARD.md)
+- [Claude 抓取：thinking 用量与无回显语义](docs/CLAUDE-CAPTURE.md)
 - [mitmproxy 可选适配器](docs/MITMPROXY.md)
 - [验证记录](docs/VALIDATION.md) · [开发贡献](CONTRIBUTING.md) · [发布流程](docs/RELEASING.md)
 - [架构图](docs/architecture.svg)与 [DOT 源文件](docs/architecture.dot)

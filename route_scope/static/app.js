@@ -7,6 +7,7 @@ const el = (tag, text, cls) => { const n=document.createElement(tag); if(text!==
 const effort = (x, missing="未返回") => !x?.present ? missing : x.value === null ? "null" : typeof x.value === "string" ? (x.value || '""（空值）') : "无效字段";
 function badge(x, missing){const v=effort(x,missing);return el("span",v,"pill "+(["none","minimal","low","medium","high","xhigh","max"].includes(v)?v:""));}
 const audit = r => r.outbound_verdict || r.verdict;
+const needsReview = r => !["match","lower","changed","no_echo"].includes(audit(r));
 function clientType(record){
   const agent=record.client||record.request_headers?.["user-agent"]||"";
   const claude=/\bclaude(?:[-_ ]cli)?(?:[\/\s;]|$)/i.test(agent);
@@ -18,15 +19,16 @@ function render(){
   $("total").textContent=items.length;
   $("matches").textContent=items.filter(x=>audit(x)==="match").length;
   $("changes").textContent=items.filter(x=>["lower","changed"].includes(audit(x))||x.model_changed).length;
-  $("unknown").textContent=items.filter(x=>!["match","lower","changed"].includes(audit(x))).length;
+  $("no-echo").textContent=items.filter(x=>audit(x)==="no_echo").length;
+  $("unknown").textContent=items.filter(needsReview).length;
   const session=$("sessions").value, source=$("sources").value, client=$("clients").value, selectedEffort=$("efforts").value, q=$("search").value.toLowerCase();
-  const visible=items.filter(x=>(!client||clientType(x)===client)&&(!source||(x.capture_host||x.source)===source)&&(!session||x.session===session)&&(!selectedEffort||JSON.stringify(x.requested?.value)===selectedEffort)&&(!q||JSON.stringify(x).toLowerCase().includes(q))&&(filter==="all"||(filter==="changed"?(["lower","changed"].includes(audit(x))||x.model_changed):!["match","lower","changed"].includes(audit(x)))));
+  const visible=items.filter(x=>(!client||clientType(x)===client)&&(!source||(x.capture_host||x.source)===source)&&(!session||x.session===session)&&(!selectedEffort||JSON.stringify(x.requested?.value)===selectedEffort)&&(!q||JSON.stringify(x).toLowerCase().includes(q))&&(filter==="all"||(filter==="changed"?(["lower","changed"].includes(audit(x))||x.model_changed):filter==="no_echo"?audit(x)==="no_echo":needsReview(x))));
   $("rows").replaceChildren();
   for(const r of visible){
     const row=el("tr",undefined,audit(r));
     const when=el("td",fmt.format(new Date(r.started_at)),"time");when.append(el("small",fmtDate.format(new Date(r.started_at))),el("small",r.capture_host|| (r.source==="websocket"?"WebSocket":r.source==="wsl-passive"?"WSL 旁路 / HTTP":r.source==="windows-passive"?"Windows 旁路 / HTTP":"HTTP / SSE")));row.append(when);
     const clientCell=el("td",clientNames[clientType(r)],"client-name");clientCell.title="User-Agent: "+(r.client||"未提供");row.append(clientCell);
-    const model=el("td",undefined,"model-cell");model.append(el("span",r.requested_model||"未声明","model"));row.append(model);
+    const model=el("td",undefined,"model-cell");model.append(el("span",r.requested_model||"未声明","model"),el("small",r.capture_boundary==="client_to_ccswitch"?"客户端 → CC Switch":"观测点请求 body.model"));row.append(model);
     const returned=el("td",undefined,"model-cell");
     returned.append(el("span",r.returned_model||r.first_model||"未返回模型字段","model"));
     if(r.returned_model){
@@ -35,10 +37,25 @@ function render(){
     }else if(r.first_model){returned.append(el("small","仅首包 · 最终模型未返回"));}
     if(r.model_changed)returned.append(el("small","与请求模型名称不同","amber"));
     row.append(returned);
-    for(const key of ["requested","first","final"]){const cell=el("td");cell.append(badge(r[key],key==="requested"?"未声明":"未返回"));if(key==="requested")cell.append(el("small",r.requested?.path||"请求中没有该字段"));row.append(cell);}
+    for(const key of ["requested","first","final"]){
+      const cell=el("td");
+      const missing=key==="requested"?"未声明":r.protocol==="anthropic_messages"?"标准协议无回显":"未返回";
+      cell.append(badge(r[key],missing));
+      if(key==="requested"){
+        cell.append(el("small",r.requested?.path||"请求中没有该字段"));
+        if(r.protocol==="anthropic_messages"){
+          if(r.request_thinking){for(const [name,value] of Object.entries(r.request_thinking))cell.append(el("small",`thinking.${name}: ${JSON.stringify(value)}`));}
+          else cell.append(el("small","旧记录未提取 thinking 设置"));
+          if(r.message_efforts?.length)cell.append(el("small",`另有 ${r.message_efforts.length} 处消息级 effort · 详见证据`,"amber"));
+        }
+      }else if(r.protocol==="anthropic_messages"&&r[key]?.present){cell.append(el("small","供应商扩展回显"));}
+      row.append(cell);
+    }
     if(r.forwarded_requested)row.children[4].append(el("small","实际出站："+effort(r.forwarded_requested,"未声明")));
     const inProgress=["sending","streaming"].includes(r.state);
-    const tokens=el("td",r.reasoning_tokens===null?"—":Number(r.reasoning_tokens).toLocaleString());tokens.append(el("small",r.duration_ms===undefined?(inProgress?"进行中":"耗时未知"):(r.duration_ms/1000).toFixed(1)+" 秒"));row.append(tokens);
+    const tokens=el("td",r.reasoning_tokens==null?"—":Number(r.reasoning_tokens).toLocaleString());
+    tokens.title=r.reasoning_tokens_source||"接口未报告推理用量";
+    tokens.append(el("small",r.reasoning_tokens_source?.endsWith("thinking_tokens")?"thinking · 接口报告":"reasoning · 接口报告"),el("small",r.duration_ms===undefined?(inProgress?"进行中":"耗时未知"):(r.duration_ms/1000).toFixed(1)+" 秒"));row.append(tokens);
     const result=el("td");result.append(el("span",r.outbound_verdict_label||r.verdict_label,"result "+audit(r)),el("small",(r.http_status?"HTTP "+r.http_status:inProgress?"等待响应":"未捕获响应头")+(r.model_changed?" · 模型名称不同":"")));row.append(result);
     if(r.routing){const labels={admitted:"回显合格 · 已放行",rejected:"未通过核验 · 未交付",withheld:"完整响应核验中",cancelled:"客户端断开",blocked:"本地拦截 · 未请求上游",upstream_error_forwarded:"上游错误已返回"};result.append(el("small",`${r.routing.route||'本地策略'} · 尝试 ${r.routing.attempt} · ${labels[r.routing.delivery]||r.routing.delivery}${r.routing.client_status?' · 客户端 HTTP '+r.routing.client_status:''}`));}
     const end=el("td"),button=el("button","查看 ↗","detail-button");button.addEventListener("click",()=>openDetail(r.id));end.append(button,el("small",r.session?r.session.slice(0,8):"无会话标识"));row.append(end);$("rows").append(row);
@@ -106,7 +123,7 @@ async function refresh(){
     $("connection").textContent="观测服务在线";$("updated").textContent="更新于 "+fmt.format(new Date());render();
   }catch{$("connection").textContent="服务未连接 · 正在重试";}
 }
-async function openDetail(id){try{const resp=await fetch("/api/captures/"+encodeURIComponent(id));if(!resp.ok)throw Error();detail=await resp.json();$("detail-summary").textContent=clientNames[clientType(detail)]+" · "+(detail.capture_host||detail.source)+" · 请求模型："+(detail.requested_model||"未声明")+" · 返回模型："+(detail.returned_model||detail.first_model||"未返回")+" · "+detail.verdict_label;showDetail("evidence");$("detail").showModal();}catch{$("connection").textContent="记录已过期或服务未连接";}}
+async function openDetail(id){try{const resp=await fetch("/api/captures/"+encodeURIComponent(id));if(!resp.ok)throw Error();detail=await resp.json();$("detail-summary").textContent=clientNames[clientType(detail)]+" · "+(detail.capture_host||detail.source)+" · 观测点请求模型："+(detail.requested_model||"未声明")+" · 返回模型："+(detail.returned_model||detail.first_model||"未返回")+" · "+detail.verdict_label;showDetail("evidence");$("detail").showModal();}catch{$("connection").textContent="记录已过期或服务未连接";}}
 function showDetail(view){
   let value;
   if(view==="request")value={headers:detail.request_headers,body:detail.request_body,bytes:detail.request_bytes,sha256:detail.request_sha256,truncated:detail.request_truncated,actual_outbound:detail.forwarded_requested?{effort:detail.forwarded_requested,headers:detail.forwarded_request_headers,body:detail.forwarded_request_body,sha256:detail.forwarded_sha256}:undefined};

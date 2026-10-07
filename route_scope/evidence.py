@@ -7,6 +7,7 @@ import re
 import time
 import uuid
 import zlib
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
 # Comparison order only: never a model capability list or a capture whitelist.
@@ -88,6 +89,53 @@ def effort(payload):
     return {"present": False, "value": None, "path": None}
 
 
+def message_request_fields(payload):
+    """Capture declarations without inferring an effective per-turn setting."""
+    thinking = obj(payload.get('thinking'))
+    overrides = []
+    messages = payload.get('messages')
+    for index, message in enumerate(messages if isinstance(messages, list) else []):
+        config = obj(obj(message).get('output_config'))
+        if 'effort' in config:
+            overrides.append({'index': index, 'role': obj(message).get('role'),
+                              'effort': {'present': True, 'value': config['effort'],
+                                         'path': f'messages[{index}].output_config.effort'}})
+    return {'request_thinking': {key: thinking[key] for key in ('type', 'budget_tokens', 'display') if key in thinking},
+            'request_max_tokens': payload.get('max_tokens'), 'message_efforts': overrides}
+
+
+def token_fields(usage, protocol=None):
+    usage = obj(usage)
+    output = obj(usage.get('output_tokens_details'))
+    completion = obj(usage.get('completion_tokens_details'))
+    candidates = [('usage.output_tokens_details.reasoning_tokens', output, 'reasoning_tokens'),
+                  ('usage.completion_tokens_details.reasoning_tokens', completion, 'reasoning_tokens')]
+    thinking = ('usage.output_tokens_details.thinking_tokens', output, 'thinking_tokens')
+    candidates = [thinking, *candidates] if protocol == 'anthropic_messages' else [*candidates, thinking]
+    source, value = None, None
+    for path, details, key in candidates:
+        if key in details:
+            source, value = path, details[key]
+            break
+    valid = lambda value: value if type(value) is int and value >= 0 else None
+    return {'reasoning_tokens': valid(value), 'reasoning_tokens_source': source,
+            'thinking_tokens': valid(output.get('thinking_tokens'))}
+
+
+def enrich_record(record):
+    """Read compatibility for existing databases/snapshots; never rewrite evidence."""
+    result = dict(record)
+    if (result.get('protocol') == 'anthropic_messages' or result.get('first_event') == 'message_start'
+            or urlsplit(result.get('path') or '').path.rstrip('/').endswith('/messages')):
+        result['protocol'] = 'anthropic_messages'
+        if isinstance(result.get('request_body'), dict):
+            for key, value in message_request_fields(result['request_body']).items():
+                result.setdefault(key, value)
+        result.update(token_fields(result.get('usage'), result['protocol']))
+        result['verdict'], result['verdict_label'] = verdict(result)
+    return result
+
+
 def verdict(record):
     if record.get("transport_error") or record.get("state") == "failed" or (record.get("http_status") or 0) >= 400:
         return "failed", "请求失败"
@@ -97,6 +145,12 @@ def verdict(record):
         return "incomplete", "返回未完整完成"
     if record.get("parse_errors") or record.get("attribution_uncertain"):
         return "unknown", "报文解析或归属不完整"
+    if record.get('message_efforts'):
+        return 'unknown', '存在消息级强度 · 需按消息核对'
+    if (record.get('protocol') == 'anthropic_messages'
+            and not obj(record.get('first')).get('present')
+            and not obj(record.get('final')).get('present')):
+        return 'no_echo', '已完成 · 标准协议无强度回显'
     requested = obj(record.get("requested")).get("value")
     returned = obj(record.get("final")).get("value")
     if not isinstance(requested, str) or not requested.strip() or not isinstance(returned, str) or not returned.strip():
@@ -193,6 +247,9 @@ class Observation:
             "request_truncated": len(decoded_body) > body_limit, "account_hints": {},
             "internal_account": "unknown", "actual_compute": "unverified",
         }
+        if urlsplit(path).path.rstrip('/').endswith('/messages'):
+            self.record['protocol'] = 'anthropic_messages'
+            self.record.update(sanitize(message_request_fields(payload), self.secrets))
         if request_parse_error:
             self.record["parse_errors"].append(request_parse_error)
         nested, flat = obj(payload.get("reasoning")).get("effort"), payload.get("reasoning_effort")
@@ -281,6 +338,8 @@ class Observation:
 
     def event(self, payload, kind="", plain_json=False):
         kind = payload.get("type") or kind
+        if kind == 'message' or kind in ('message_start', 'message_delta', 'message_stop'):
+            self.record['protocol'] = 'anthropic_messages'
         if kind in ("message_start", "message_delta", "message_stop", "content_block_delta") and not plain_json:
             self.message_event(payload, kind)
             return
@@ -312,6 +371,9 @@ class Observation:
                     self.record["stop_reason"] = response.get("stop_reason")
                     if response.get("stop_reason") in ("max_tokens", "model_context_window_exceeded"):
                         self.record["state"] = "incomplete"
+                    elif not response.get('stop_reason') and self.record['state'] != 'failed':
+                        self.record['parse_errors'].append('incomplete_message_sequence')
+                        self.record['state'] = 'interrupted'
                 self.record["incomplete_details"] = sanitize(response.get("incomplete_details"), self.secrets)
                 self.record["upstream_error"] = sanitize(response.get("error"), self.secrets)
                 texts = [c.get("text", "") for item in response.get("output", []) if isinstance(item, dict) for c in item.get("content", []) if isinstance(c, dict) and c.get("type") == "output_text"]
@@ -355,8 +417,12 @@ class Observation:
             delta = obj(payload.get("delta"))
             if "stop_reason" in delta:
                 record["stop_reason"] = delta["stop_reason"]
-            if isinstance(payload.get("usage"), dict):
-                self.usage({**obj(record.get("usage")), **payload["usage"]})
+            seen = effort(delta)
+            if not seen['present']:
+                seen = effort(payload)
+            if seen['present']:
+                record['message_delta_effort'] = seen
+            self.usage(payload.get('usage'))
         elif kind == "content_block_delta":
             delta = obj(payload.get("delta"))
             if delta.get("type") == "text_delta":
@@ -364,6 +430,11 @@ class Observation:
         elif kind == "message_stop":
             record["terminal_event"] = kind
             record["final"] = effort(payload)
+            if record['final']['present']:
+                record['final_effort_event'] = kind
+            elif record.get('message_delta_effort'):
+                record['final'] = record['message_delta_effort']
+                record['final_effort_event'] = 'message_delta'
             if record["state"] != "failed":
                 if record.get("first_event") != "message_start" or not record.get("stop_reason"):
                     record["parse_errors"].append("incomplete_message_sequence")
@@ -376,9 +447,13 @@ class Observation:
 
     def usage(self, usage):
         if isinstance(usage, dict):
+            if self.record.get('protocol') == 'anthropic_messages':
+                merged = dict(obj(self.record.get('usage')))
+                for key, value in usage.items():
+                    merged[key] = {**obj(merged.get(key)), **value} if isinstance(value, dict) else value
+                usage = merged  # Message deltas report cumulative counts, not increments.
             self.record["usage"] = sanitize(usage, self.secrets)
-            details = obj(usage.get("output_tokens_details", usage.get("completion_tokens_details")))
-            self.record["reasoning_tokens"] = details.get("reasoning_tokens")
+            self.record.update(token_fields(usage, self.record.get('protocol')))
 
     def finish(self, transport_error=None):
         if transport_error:
