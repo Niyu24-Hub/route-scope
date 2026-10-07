@@ -18,13 +18,18 @@ try:
     import aiohttp, brotli, zstandard
     from importlib.metadata import version
     from route_scope import __version__
-    sys.exit(0 if version("route-scope") == __version__ else 1)
+    sys.exit(0 if version('route-scope') == __version__ else 1)
 except ImportError:
     sys.exit(1)
 except Exception:
     sys.exit(1)
 '@
 if ($LASTEXITCODE -ne 0) {
+    & $RouteScopePython -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('pip') else 1)"
+    if ($LASTEXITCODE -ne 0) {
+        & $RouteScopePython -m ensurepip --upgrade
+        if ($LASTEXITCODE -ne 0) { throw 'Could not initialize pip in the Python environment.' }
+    }
     & $RouteScopePython -m pip install -e (Split-Path $PSScriptRoot -Parent)
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed. Check your network and pip configuration.' }
 }

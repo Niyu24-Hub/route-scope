@@ -92,3 +92,26 @@ def runtime_state(directory):
         status['workers'].append(worker)
     status['paused'] = bool(read_json(root/'control.json').get('paused'))
     return status
+
+
+def prepare_watch(directory, timeout=30):
+    """Reuse the current version, or cooperatively stop an obsolete supervisor."""
+    from . import __version__
+    root = Path(directory)
+    root.mkdir(parents=True, exist_ok=True)
+    status = read_json(root/'watch-status.json')
+    fresh = time.time() - status.get('updated_epoch', 0) < 15
+    if status.get('state') == 'running' and fresh and status.get('version') == __version__:
+        return {'action': 'reuse', 'dashboard_url': status.get('dashboard_url'), 'version': __version__}
+    restarting = status.get('state') in ('running', 'starting', 'stopping')
+    if restarting and status.get('run_id'):
+        atomic_json(root/'control.json', {'stop_run_id': status['run_id'], 'paused': False})
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with InstanceLock(root/'watch.lock'):
+                return {'action': 'restart' if restarting else 'start', 'version': __version__}
+        except RuntimeError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError('旧抓取服务尚未退出；已通知停止，请稍后重试。未强制终止任何进程。') from None
+            time.sleep(.2)

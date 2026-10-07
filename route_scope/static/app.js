@@ -120,7 +120,7 @@ async function refresh(){
     for(const value of [...new Set(items.map(x=>x.requested?.value).filter(x=>typeof x==="string"))].sort()){const option=el("option",value||'""（空值）');option.value=JSON.stringify(value);$("efforts").append(option);}$("efforts").value=selectedEffort;
     const selectedSource=$("sources").value;$("sources").replaceChildren(el("option","所有来源"));$("sources").firstChild.value="";
     for(const value of [...new Set(items.map(x=>x.capture_host||x.source).filter(Boolean))]){const option=el("option",value);option.value=value;$("sources").append(option);}$("sources").value=selectedSource;
-    $("connection").textContent="观测服务在线";$("updated").textContent="更新于 "+fmt.format(new Date());render();
+    $("connection").textContent=s.version?"观测服务在线 · v"+s.version:"旧后端仍在运行 · 请重启 Route Scope";$("updated").textContent="更新于 "+fmt.format(new Date());render();
   }catch{$("connection").textContent="服务未连接 · 正在重试";}
 }
 async function openDetail(id){try{const resp=await fetch("/api/captures/"+encodeURIComponent(id));if(!resp.ok)throw Error();detail=await resp.json();$("detail-summary").textContent=clientNames[clientType(detail)]+" · "+(detail.capture_host||detail.source)+" · 观测点请求模型："+(detail.requested_model||"未声明")+" · 返回模型："+(detail.returned_model||detail.first_model||"未返回")+" · "+detail.verdict_label;showDetail("evidence");$("detail").showModal();}catch{$("connection").textContent="记录已过期或服务未连接";}}

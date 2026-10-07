@@ -52,8 +52,8 @@ def parser():
     watch.add_argument('--retention',type=int,default=1000)
     watch.add_argument('--metadata-only',action='store_true')
     watch.add_argument('--open-browser',action='store_true')
-    for command in ('watch-status','watch-stop'):
-        ctl=sub.add_parser(command,help='查看自动抓取状态' if command=='watch-status' else '仅停止本项目自动抓取服务')
+    for command in ('watch-status','watch-stop','watch-prepare'):
+        ctl=sub.add_parser(command,help={'watch-status':'查看自动抓取状态','watch-stop':'仅停止本项目自动抓取服务','watch-prepare':'复用当前版本或通知旧版抓取服务退出，以便升级启动'}[command])
         ctl.add_argument('--data-dir',default='data/auto')
     s = sub.add_parser("serve", help="启动本地代理和中文面板")
     s.add_argument("--config")
@@ -105,6 +105,9 @@ def main():
         elif args.command == 'watch-stop':
             from .watch import request_stop
             print_json(request_stop(args.data_dir))
+        elif args.command == 'watch-prepare':
+            from .runtime import prepare_watch
+            print_json(prepare_watch(args.data_dir))
         elif args.command == "serve":
             values = {}
             if args.config:

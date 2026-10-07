@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "route-scope"
-version = "0.3.3"
+version = "0.3.4"
 description = "Local CC Switch / AnyRouter request and reasoning evidence inspector"
 readme = "README.md"
 license = "MIT"

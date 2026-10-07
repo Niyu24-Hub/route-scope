@@ -13,6 +13,7 @@ import webbrowser
 from .catalog import Catalog
 from .runtime import InstanceLock, atomic_json, read_json, stop_requested
 from .server import Config, Service
+from . import __version__
 
 NO_WINDOW=getattr(subprocess,'CREATE_NO_WINDOW',0)
 
@@ -117,7 +118,7 @@ async def run_watch(args):
         for sig in (signal.SIGINT,signal.SIGTERM):
             previous[sig]=signal.getsignal(sig)
             signal.signal(sig,lambda *_:loop.call_soon_threadsafe(stop.set))
-        status={'run_id':run_id,'pid':os.getpid(),'state':'starting','started_epoch':started,
+        status={'run_id':run_id,'pid':os.getpid(),'state':'starting','started_epoch':started,'version':__version__,
                 'worker_dirs':[j['directory'] for j in jobs],'mode':'automatic_passive',
                 'dashboard_url':f'http://127.0.0.1:{args.dashboard_port}',
                 'configuration_changed':False,'setup_errors':setup_errors}

@@ -6,19 +6,19 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
-$RouteScopeStatus = Join-Path $PSScriptRoot 'data\auto\watch-status.json'
-if (Test-Path -LiteralPath $RouteScopeStatus) {
-    try {
-        $RouteScopeExisting = Get-Content -LiteralPath $RouteScopeStatus -Raw -Encoding UTF8 | ConvertFrom-Json
-        $RouteScopeAge = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - $RouteScopeExisting.updated_epoch
-        if ($RouteScopeExisting.state -eq 'running' -and $RouteScopeAge -lt 15 -and $RouteScopeExisting.dashboard_url -match '^http://127\.0\.0\.1:[0-9]+$') {
-            Start-Process $RouteScopeExisting.dashboard_url
-            Write-Host 'Route Scope is already running. Opened its dashboard.'
-            exit 0
-        }
-    } catch { }
-}
 . (Join-Path $PSScriptRoot 'scripts\bootstrap.ps1')
+$RouteScopePreparation = & $RouteScopePython -m route_scope watch-prepare
+if ($LASTEXITCODE -ne 0) { throw 'Could not prepare capture service. See the error above.' }
+$RouteScopePreparation = ($RouteScopePreparation -join "`n") | ConvertFrom-Json
+if ($RouteScopePreparation.action -eq 'reuse') {
+    if ($RouteScopePreparation.dashboard_url -notmatch '^http://127\.0\.0\.1:[0-9]+$') { throw 'Invalid dashboard URL.' }
+    Start-Process $RouteScopePreparation.dashboard_url
+    Write-Host "Route Scope $($RouteScopePreparation.version) is already running. Opened its dashboard."
+    exit 0
+}
+if ($RouteScopePreparation.action -eq 'restart') {
+    Write-Host "Previous Route Scope stopped. Starting version $($RouteScopePreparation.version)."
+}
 $RouteScopeArgs = @('-m','route_scope','watch','--dashboard-port',"$DashboardPort",'--open-browser')
 if ($Distro) { $RouteScopeArgs += @('--distro',$Distro) }
 if ($MetadataOnly) { $RouteScopeArgs += '--metadata-only' }

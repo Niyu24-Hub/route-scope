@@ -290,7 +290,8 @@ class Service:
             raise
 
     async def status(self, request):
-        return web.json_response({"upstream": self.config.upstream,
+        from . import __version__
+        return web.json_response({"version": __version__, "upstream": self.config.upstream,
             "proxy": f"http://{self.config.proxy_host}:{self.config.proxy_port}",
             "viewer": self.viewer,
             "watch": self.store.runtime_status() if hasattr(self.store,'runtime_status') else None,
