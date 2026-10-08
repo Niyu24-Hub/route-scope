@@ -77,3 +77,7 @@ python -m pytest -q
 前端无需 Node 构建。基础测试使用本地模拟流量；Windows / Ubuntu 的 Python 3.11 / 3.12 由 GitHub Actions 验证。可选 mitmproxy 适配器要求 Python 3.12+。
 
 本项目与 CC Switch、AnyRouter、OpenAI、Anthropic 无隶属关系。MIT 许可证；依赖遵循各自许可证，分发包不包含 Npcap、账号或密钥。
+
+## 社区友链
+
+- [LINUX DO 社区](https://linux.do)
